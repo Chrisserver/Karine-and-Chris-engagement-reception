@@ -202,6 +202,8 @@ select.sort { border: 1px solid var(--line-2); background: var(--card); border-r
 .pill[data-s="quote"] { background: color-mix(in srgb, var(--plum) 16%, transparent); color: var(--plum); }
 .pill[data-s="top"], .pill[data-s="booked"] { background: var(--rose-soft); color: var(--rose); }
 .pill[data-s="progress"] { background: color-mix(in srgb, var(--t3) 20%, transparent); color: var(--t3); }
+.pill[data-s="maybe"] { background: color-mix(in srgb, #e0a100 24%, transparent); color: color-mix(in srgb, #e0a100 65%, var(--ink)); }
+.mc-actions .btn[aria-pressed="true"] { border-color: #e0a100; background: color-mix(in srgb, #e0a100 22%, var(--card)); }
 .pill[data-s="no"] { text-decoration: line-through; }
 .qrow { display: flex; gap: 6px; padding: 0 15px 12px; position: relative; z-index: 2; }
 .qrow .chip { font-size: 12px; padding: 4px 10px; }
@@ -250,7 +252,8 @@ select.sort { border: 1px solid var(--line-2); background: var(--card); border-r
 .costbox td { padding: 7px 0; border-top: 1px solid var(--line); vertical-align: top; }
 .costbox td:last-child { text-align: right; white-space: nowrap; font-weight: 650; }
 .costbox tr.total td { font-weight: 800; border-top: 2px solid var(--ink); }
-.costbox .note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+.costbox .note { display: block; font-size: 13px; color: var(--muted); margin-top: 10px; }
+p.note { display: block; }
 .srcs { display: grid; gap: 8px; }
 .src { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 13.5px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; }
 .src a { overflow-wrap: anywhere; }
@@ -294,9 +297,9 @@ ul.clean { margin: 0; padding-left: 18px; display: grid; gap: 5px; }
 .map-legend { position: absolute; left: 12px; bottom: 12px; background: color-mix(in srgb, var(--card) 92%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; display: grid; gap: 4px; z-index: 2; }
 .map-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .map-legend { max-width: 250px; }
-.mapwrap { --mpv: #1fa05a; --mpw: #b02ad0; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .mapwrap { --mpv: #3ddc84; --mpw: #d572f0; } }
-:root[data-theme="dark"] .mapwrap { --mpv: #3ddc84; --mpw: #d572f0; }
+.mapwrap { --mpv: #1fa05a; --mpw: #b02ad0; --mpm: #e0a100; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .mapwrap { --mpv: #3ddc84; --mpw: #d572f0; --mpm: #ffd23f; } }
+:root[data-theme="dark"] .mapwrap { --mpv: #3ddc84; --mpw: #d572f0; --mpm: #ffd23f; }
 .map-legend .dot { flex: none; }
 .mapwrap { --mp1: #7fb1e3; --mp2: #4d90d0; --mp3: #2a67ad; --mp4: #14407a; --mph: #ff7a1a; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .mapwrap { --mp1: #d3e7fa; --mp2: #9bc8f0; --mp3: #62a8e6; --mp4: #3b84cf; --mph: #ff9a3d; } }
@@ -470,7 +473,7 @@ const REGION = Object.fromEntries(REGIONS);
 const ORIGINS = [["west", "West Island", "the West Island (Pointe-Claire)"], ["core", "Downtown", "downtown Montreal"], ["north", "Laval", "Laval"], ["south", "South Shore", "the South Shore (Longueuil)"]];
 const ORIGIN = Object.fromEntries(ORIGINS.map((o) => [o[0], o]));
 const STATUS = [
-  ["want", "Want to visit"], ["progress", "In progress"], ["tour", "Tour booked"], ["visited", "Visited"], ["quote", "Quote in"],
+  ["want", "Want to visit"], ["maybe", "Maybe"], ["progress", "In progress"], ["tour", "Tour booked"], ["visited", "Visited"], ["quote", "Quote in"],
   ["top", "Top pick"], ["booked", "Booked"], ["no", "Not interested"],
 ];
 const STATUS_L = Object.fromEntries(STATUS);
@@ -1061,8 +1064,8 @@ function listHTML() {
   for (const x of Store.status.values()) if (x.s || x.qa) ids.add(x.v);
   for (const x of Store.notes.values()) ids.add(x.v);
   const items = [...ids].filter((id) => byId.has(id) && !isHidden(id)).map((id) => byId.get(id));
-  const groups = [["top", "booked"], ["quote"], ["visited"], ["tour"], ["progress"], ["want"], [""]];
-  const names = { top: "Top picks", quote: "Quotes in", visited: "Visited", tour: "Tours booked", progress: "In progress (message sent)", want: "Want to visit", "": "Hearted", no: "Not interested (hidden everywhere)" };
+  const groups = [["top", "booked"], ["quote"], ["want", ""], ["progress", "tour"], ["maybe"], ["visited"]];
+  const names = { top: "Top picks", quote: "Quotes in", visited: "Visited", tour: "Tours booked", progress: "In progress & tour booked", want: "Want to visit & hearted", maybe: "Maybe", "": "Hearted", no: "Not interested (hidden everywhere)" };
   const sec = groups.map((g) => {
     const arr = items.filter((v) => { const s = (statusOf(v.id) || {}).s || ""; return g.includes(s); });
     if (!arr.length) return "";
@@ -1146,7 +1149,7 @@ function loadScript(src) { return new Promise((res, rej) => { if (document.query
 function mapHTML() {
   return `<section class="wrap" style="padding-block:20px 14px"><div class="results-head" style="margin:0"><h2 class="display" style="font-size:26px">On the map</h2><span class="cites num" id="map-count"></span><span class="spacer"></span><button class="btn small filters-btn" style="display:inline-flex" data-act="filters">${svg(I.filter)}Filters${activeChips().length ? ` (${activeChips().length})` : ""}</button></div></section>
     <section class="wrap"><div class="mapwrap" id="mapwrap"><div class="map-tools"><button class="btn small" data-zoom="mtl">Montreal</button><button class="btn small" data-zoom="all">Whole region</button></div>
-      <div class="map-legend">${[1, 2, 3, 4].map((t) => `<span><i class="dot" style="background:var(--mp${t})"></i>${"$".repeat(t)}</span>`).join("")}<span><i class="dot" style="background:var(--mpw)"></i>Hearted or want to visit</span><span><i class="dot" style="background:var(--mph)"></i>In progress or tour booked</span><span><i class="dot" style="background:var(--mpv)"></i>Visited</span></div>
+      <div class="map-legend">${[1, 2, 3, 4].map((t) => `<span><i class="dot" style="background:var(--mp${t})"></i>${"$".repeat(t)}</span>`).join("")}<span><i class="dot" style="background:var(--mpw)"></i>Hearted or want to visit</span><span><i class="dot" style="background:var(--mph)"></i>In progress or tour booked</span><span><i class="dot" style="background:var(--mpm)"></i>Maybe</span><span><i class="dot" style="background:var(--mpv)"></i>Visited</span></div>
       <div id="map-svg" style="width:100%;height:100%"><div class="empty" style="margin:60px auto;max-width:300px;border:0">Loading the map…</div></div><div id="map-card"></div></div>
       <p class="map-note">The map shows the venues that match your filters. Tap a dot to see it.</p></section>`;
 }
@@ -1190,8 +1193,9 @@ async function drawMap() {
   const vis = (v) => (statusOf(v.id) || {}).s === "visited";
   const wnt = (v) => (statusOf(v.id) || {}).s === "want" || heartsFor(v.id).length > 0;
   const act = (v) => ["progress", "tour"].includes((statusOf(v.id) || {}).s);
-  const rank = (v) => (vis(v) ? 3 : act(v) ? 2 : wnt(v) ? 1 : 0);
-  const color = (v) => (vis(v) ? "var(--mpv)" : act(v) ? "var(--mph)" : wnt(v) ? "var(--mpw)" : `var(--mp${tierOf(est(v, S.N))})`);
+  const may = (v) => (statusOf(v.id) || {}).s === "maybe";
+  const rank = (v) => (vis(v) ? 4 : act(v) ? 3 : may(v) ? 2 : wnt(v) ? 1 : 0);
+  const color = (v) => (vis(v) ? "var(--mpv)" : act(v) ? "var(--mph)" : may(v) ? "var(--mpm)" : wnt(v) ? "var(--mpw)" : `var(--mp${tierOf(est(v, S.N))})`);
   const dots = g.append("g").selectAll("circle").data(list.slice().sort((a, b) => rank(a) - rank(b))).join("circle").attr("cx", (v) => proj([v.lng, v.lat])[0]).attr("cy", (v) => proj([v.lng, v.lat])[1]).attr("fill", color).attr("stroke", "var(--card)").style("cursor", "pointer");
   dots.append("title").text((v) => v.n);
   dots.on("click", (ev, v) => { ev.stopPropagation(); S.mapSel = v.id; mapCard(); });
@@ -1246,8 +1250,8 @@ function mapCard() {
       <div class="mc-where">${esc(v.c || "")}${v.c ? " · " : ""}${esc(REGION[v.r] || "")}</div>
       <div class="mc-facts num"><span>${svg(I.people)}${v.cap ? "Seats " + v.cap : "Seats ?"}</span><span>${svg(I.car)}${mins(driveOf(v))}</span>${v.rooms ? `<span>${svg(I.bed)}${v.rooms} rooms</span>` : ""}</div>
       <div class="mc-price num"><div><span class="mc-tot">≈ ${range(e.L, e.H, fmtK)}</span><span class="tier" data-t="${t}" title="Price band">${"$".repeat(t)}</span></div><div class="mc-sub"><span>${range(e.gL, e.gH, fmt$)} a guest</span><span class="basis ${v.p.basis}">${BASIS[v.p.basis]}</span></div></div>
-      <div class="mc-status"><button class="chip mc-heart" data-heart="${v.id}" aria-pressed="${!!mv.heart}">${svg(I.heart)}${mv.heart ? "Hearted" : "Heart"}</button><button class="chip" data-status="${v.id}:want" aria-pressed="${st.s === "want"}">Want to visit</button><button class="chip" data-status="${v.id}:no" aria-pressed="false" title="Hide this place everywhere">Not interested</button></div>
-      <div class="mc-actions"><button class="btn primary" data-open="${v.id}">See the details</button><a class="btn" href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener noreferrer">Roads &amp; directions</a></div>
+      <div class="mc-status"><button class="chip mc-heart" data-heart="${v.id}" aria-pressed="${!!mv.heart}">${svg(I.heart)}${mv.heart ? "Hearted" : "Heart"}</button><button class="chip" data-status="${v.id}:progress" aria-pressed="${st.s === "progress"}">In progress</button><button class="chip" data-status="${v.id}:no" aria-pressed="false" title="Hide this place everywhere">Not interested</button></div>
+      <div class="mc-actions"><button class="btn primary" data-open="${v.id}">See the details</button><button class="btn" data-status="${v.id}:maybe" aria-pressed="${st.s === "maybe"}">Maybe</button></div>
     </div></div>`;
 }
 
@@ -1300,7 +1304,7 @@ function buildShortlistPdf() {
   for (const x of Store.votes.values()) if (x.heart || x.stars) ids.add(x.v);
   for (const x of Store.status.values()) if (x.s || x.qa) ids.add(x.v);
   for (const x of Store.notes.values()) ids.add(x.v);
-  const order = { top: 0, booked: 0, quote: 1, visited: 2, tour: 3, progress: 3.5, want: 4, "": 5, no: 9 };
+  const order = { top: 0, booked: 0, quote: 1, visited: 2, tour: 3, progress: 3.5, want: 4, maybe: 4.5, "": 5, no: 9 };
   const vs = [...ids].filter((id) => byId.has(id) && !isHidden(id)).map((id) => byId.get(id)).sort((a, b) => (order[(statusOf(a.id) || {}).s || ""] - order[(statusOf(b.id) || {}).s || ""]) || heartsFor(b.id).length - heartsFor(a.id).length);
   if (!vs.length) para("No venues picked yet. Heart a few in the Venue Book and download this again.", 11);
   for (const v of vs) {
