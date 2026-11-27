@@ -110,7 +110,7 @@ h1, h2, h3 { text-wrap: balance; margin: 0; }
   :root { --nav-h: 62px; }
   .tabs { display: none; }
   .brand b { font-size: 17px; }
-  .bnav { display: grid; grid-template-columns: repeat(6, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; background: var(--card); border-top: 1px solid var(--line); padding: 4px max(6px, env(safe-area-inset-right, 0px)) calc(4px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px)); }
+  .bnav { display: grid; grid-template-columns: repeat(7, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; background: var(--card); border-top: 1px solid var(--line); padding: 4px max(6px, env(safe-area-inset-right, 0px)) calc(4px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px)); }
   .bnav .tab { flex-direction: column; gap: 2px; font-size: 11px; padding: 6px 2px; position: relative; }
   .bnav .tab[aria-current="page"] { background: none; color: var(--accent); }
   .bnav .tab .count { position: absolute; top: 2px; left: calc(50% + 6px); }
@@ -790,9 +790,11 @@ const MUST = [
 ];
 const MUSTF = Object.fromEntries(MUST.map((m) => [m[0], m[2]]));
 function isHidden(id) { const x = Store.status.get(id); return !!(x && x.s === "no"); }
+function isMaybe(id) { const x = Store.status.get(id); return !!(x && x.s === "maybe"); }
 function driveOf(v) { const d = v.dt && v.dt[S.origin]; return d ? d[0] : null; }
 function passes(v, skip) {
   if (isHidden(v.id)) return false;
+  if (S.view === "maybe" && !isMaybe(v.id)) return false;
   if (skip !== "q" && S.q) {
     const hay = (v.n + " " + (v.aka || "") + " " + (v.c || "") + " " + REGION[v.r] + " " + typeOf(v)[0]).toLowerCase();
     if (!S.q.toLowerCase().split(/\s+/).every((w) => hay.includes(w))) return false;
@@ -829,7 +831,7 @@ function photo(v, cls = "") {
 }
 
 /* ---------- render: shell ---------- */
-const VIEWS = [["explore", "Explore", I.explore], ["map", "Map", I.map], ["list", "Our list", I.list], ["compare", "Compare", I.compare], ["guide", "Guide", I.guide], ["hidden", "Hidden", I.close]];
+const VIEWS = [["explore", "Explore", I.explore], ["maybe", "Maybe", I.star], ["map", "Map", I.map], ["list", "Our list", I.list], ["compare", "Compare", I.compare], ["guide", "Guide", I.guide], ["hidden", "Hidden", I.close]];
 function hiddenList() { return V.filter((v) => isHidden(v.id)).sort((a, b) => a.n.localeCompare(b.n)); }
 function hiddenHTML() {
   const arr = hiddenList();
@@ -844,7 +846,7 @@ function renderNav() {
   for (const x of Store.status.values()) if (x.s) hearted.add(x.v);
   const listN = [...hearted].filter((id) => byId.has(id) && !isHidden(id)).length;
   const html = VIEWS.map(([k, label, ic]) => {
-    const n = k === "hidden" ? hiddenList().length : k === "list" ? listN : k === "compare" ? S.compare.length : 0;
+    const n = k === "maybe" ? V.filter((v) => isMaybe(v.id)).length : k === "hidden" ? hiddenList().length : k === "list" ? listN : k === "compare" ? S.compare.length : 0;
     return `<a class="tab" href="#${k}" ${S.view === k ? 'aria-current="page"' : ""}>${svg(ic)}<span>${label}</span>${n ? `<span class="count num">${n}</span>` : ""}</a>`;
   }).join("");
   document.getElementById("tabs").innerHTML = html;
@@ -862,6 +864,11 @@ function dials() {
     <div><div class="eyebrow" style="margin-bottom:7px">Drive times from</div><div class="seg" role="group" aria-label="Drive times from">${ORIGINS.map((o) => `<button data-origin="${o[0]}" aria-pressed="${S.origin === o[0]}">${o[1]}</button>`).join("")}</div></div>
   </div>`;
 }
+function heroMaybe() {
+  const n = V.filter((v) => isMaybe(v.id)).length;
+  return `<section class="hero wrap"><div><div class="eyebrow">Maybe</div><h1 class="display">Places still <em>on the fence</em></h1>
+    <p class="lede">${n ? `${n} place${n === 1 ? "" : "s"} you marked Maybe, with the same filters, sorting and cards as Explore.` : "Nothing marked Maybe yet. Tap Maybe on a venue\u2019s card, on the map or in its details, and it will wait here."}</p></div>${dials()}</section>`;
+}
 function heroHTML() {
   const V = D.venues.filter((v) => !isHidden(v.id));
   const es = V.map((v) => est(v, S.N));
@@ -873,7 +880,7 @@ function heroHTML() {
   return `<section class="hero wrap">
     <div><div class="eyebrow">For Karine &amp; Chris</div>
       <h1 class="display">Every reception venue for <em>150 to 200</em> guests</h1>
-      <p class="lede">${V.length} places around Montreal and out to Ottawa, Kingston, the Laurentians, the Townships and Québec City, from church halls to grand ballrooms. Prices are worked out for your guest count, with tax and service in.</p>
+      <p class="lede">${V.length} places around Montreal, the Laurentians and out to Gatineau and eastern Ontario, from church halls to grand ballrooms. Prices are worked out for your guest count, with tax and service in.</p>
       <div class="statline num"><span><b>${V.length}</b> venues</span><span><b>${new Set(V.map((v) => v.r)).size}</b> areas</span><span><b>${pub}</b> with real price info</span><span>most land between <b>${fmt$(Math.floor(lo / 5) * 5)}</b> and <b>${fmt$(Math.ceil(hi / 5) * 5)}</b> a guest</span></div>
     </div>${dials()}</section>`;
 }
@@ -934,14 +941,15 @@ function cardHTML(v) {
     </div>
     <div class="foot">${st && st.s ? `<span class="pill" data-s="${st.s}">${STATUS_L[st.s]}</span>` : ""}${hs.length ? faces(hs) : ""}${ncount ? `<span class="num">${ncount} note${ncount > 1 ? "s" : ""}</span>` : ""}<span class="spacer"></span>
       <label class="cmp"><input type="checkbox" data-cmp="${v.id}" ${inCmp ? "checked" : ""}> Compare</label></div>
-    <div class="qrow"><button class="chip" data-status="${v.id}:progress" aria-pressed="${!!(st && st.s === "progress")}">In progress</button><button class="chip" data-status="${v.id}:no" aria-pressed="false" title="Hide this place everywhere">Not interested</button></div>
+    <div class="qrow"><button class="chip" data-status="${v.id}:progress" aria-pressed="${!!(st && st.s === "progress")}">In progress</button><button class="chip" data-status="${v.id}:maybe" aria-pressed="${!!(st && st.s === "maybe")}">Maybe</button><button class="chip" data-status="${v.id}:no" aria-pressed="false" title="Hide this place everywhere">Not interested</button></div>
   </article>`;
 }
 function exploreHTML() {
+  if (S.view === "maybe" && !V.some((v) => isMaybe(v.id))) return heroMaybe() + `<section class="wrap"><div class="empty"><h3>Nothing marked Maybe yet</h3><p>Tap Maybe on a venue\u2019s card, on the map or in its details, and it will wait here.</p><a class="btn primary" href="#explore">Explore venues</a></div></section>`;
   const list = sorted(V.filter((v) => passes(v)));
   const shown = list.slice(0, S.shown);
   const ac = activeChips();
-  return heroHTML() + `<section class="explore wrap">${railHTML()}<div>
+  return (S.view === "maybe" ? heroMaybe() : heroHTML()) + `<section class="explore wrap">${railHTML()}<div>
     <div class="results-head"><h2 class="num">${list.length} venue${list.length === 1 ? "" : "s"}</h2><span class="cites num">for ${S.N} guests · drive from ${esc(ORIGIN[S.origin][1])}</span><span class="spacer"></span>
       <button class="btn small filters-btn" data-act="filters">${svg(I.filter)}Filters${ac.length ? ` (${ac.length})` : ""}</button>
       <label class="sr" for="sort">Sort</label><select class="sort" id="sort">${SORTS.map(([k, l]) => `<option value="${k}" ${S.sort === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
@@ -1350,10 +1358,10 @@ function render(soft) {
   if (soft && S.open === "__filters") { refreshFiltersSheet(); }
   if (soft && S.open && S.open !== "__filters") refreshDetail();
   if (soft && S.view === "map") { mapCard(); updateMapDots(); return; }
-  if (soft && S.view === "explore") { refreshExploreSoft(); return; }
+  if (soft && (S.view === "explore" || S.view === "maybe")) { refreshExploreSoft(); return; }
   if (soft && S.view === "guide") return;
   const y = window.scrollY;
-  main.innerHTML = { explore: exploreHTML, map: mapHTML, list: listHTML, compare: compareHTML, guide: guideHTML, hidden: hiddenHTML }[S.view]();
+  main.innerHTML = { explore: exploreHTML, maybe: exploreHTML, map: mapHTML, list: listHTML, compare: compareHTML, guide: guideHTML, hidden: hiddenHTML }[S.view]();
   if (S.view === "map") drawMap();
   if (S.view === "guide") wireCalc();
   if (soft) window.scrollTo(0, y);
@@ -1435,7 +1443,7 @@ document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && S.open
 
 function route() {
   const h = location.hash.replace(/^#/, "");
-  if (h.startsWith("venue-")) { const id = h.slice(6); if (byId.has(id)) { if (S.view === "explore" && !document.querySelector(".hero")) render(false); openDetail(id); return; } }
+  if (h.startsWith("venue-")) { const id = h.slice(6); if (byId.has(id)) { if ((S.view === "explore" || S.view === "maybe") && !document.querySelector(".hero")) render(false); openDetail(id); return; } }
   const view = VIEWS.some((x) => x[0] === h) ? h : "explore";
   if (S.open) closeOverlay();
   if (view !== S.view || !document.getElementById("main").innerHTML) { S.view = view; render(false); window.scrollTo(0, 0); }
